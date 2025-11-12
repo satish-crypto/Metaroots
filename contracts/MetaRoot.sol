@@ -1,51 +1,84 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.0;
 
 contract MetaRoot {
+    // State variables
+    address public owner;
+    string public contractName;
+    uint256 public creationTime;
 
-    struct RootIdentity {
-        address owner;
-        address[] linkedAddresses;
-        bool exists;
+    // Mapping for storing meta data against a key
+    mapping(string => string) private metaData;
+
+    // Events
+    event MetaDataSet(string indexed key, string value);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event ContractRenamed(string oldName, string newName);
+
+    // Modifier to restrict to owner only
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this");
+        _;
     }
 
-    // Each user can create **one** root identity
-    mapping(address => RootIdentity) public roots;
-
-    event RootCreated(address indexed owner);
-    event AddressLinked(address indexed owner, address indexed linked);
-
-    /**
-     * @notice Create a root identity for the caller.
-     *        Can only be created once.
-     */
-    function createRoot() external {
-        require(!roots[msg.sender].exists, "Root already exists");
-
-        roots[msg.sender].owner = msg.sender;
-        roots[msg.sender].exists = true;
-
-        emit RootCreated(msg.sender);
+    // Constructor
+    constructor() {
+        owner = msg.sender;
+        contractName = "MetaRoot";
+        creationTime = block.timestamp;
     }
 
-    /**
-     * @notice Link another wallet address to your root identity.
-     * @param wallet Address to link under your identity.
-     */
-    function linkAddress(address wallet) external {
-        require(roots[msg.sender].exists, "Root not created");
-        require(wallet != address(0), "Invalid address");
-
-        roots[msg.sender].linkedAddresses.push(wallet);
-
-        emit AddressLinked(msg.sender, wallet);
+    // Ownership functions
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Invalid new owner address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
     }
 
-    /**
-     * @notice View linked addresses for a root identity owner.
-     * @param owner The root owner.
-     */
-    function getLinkedAddresses(address owner) external view returns (address[] memory) {
-        return roots[owner].linkedAddresses;
+    // Rename contract function
+    function renameContract(string calldata newName) external onlyOwner {
+        require(bytes(newName).length > 0, "Name cannot be empty");
+        string memory oldName = contractName;
+        contractName = newName;
+        emit ContractRenamed(oldName, newName);
+    }
+
+    // Set metadata function
+    function setMetaData(string calldata key, string calldata value) external onlyOwner {
+        require(bytes(key).length > 0, "Key cannot be empty");
+        metaData[key] = value;
+        emit MetaDataSet(key, value);
+    }
+
+    // Get metadata function
+    function getMetaData(string calldata key) external view returns (string memory) {
+        return metaData[key];
+    }
+
+    // Remove metadata function
+    function removeMetaData(string calldata key) external onlyOwner {
+        require(bytes(metaData[key]).length != 0, "Key does not exist");
+        delete metaData[key];
+        emit MetaDataSet(key, "");
+    }
+
+    // Utility function to get current block timestamp
+    function getCurrentTime() external view returns (uint256) {
+        return block.timestamp;
+    }
+
+    // Utility function to get contract age in seconds
+    function getContractAge() external view returns (uint256) {
+        return block.timestamp - creationTime;
+    }
+
+    // Fallback and receive functions to accept ETH (if needed)
+    receive() external payable {}
+
+    fallback() external payable {}
+
+    // Withdraw ETH from contract by owner
+    function withdraw(uint256 amount) external onlyOwner {
+        payable(owner).transfer(amount);
     }
 }
